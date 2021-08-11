@@ -18,5 +18,3 @@ There is a Docker container published to `dtw0/purpleair-exporter` built using t
 
 - Make ip/port binding configurable (hardcoded to 0.0.0.0:3000 for now)
 - Export further data from sensors: we have other data available in the `SensorInfo` struct but it is not currently exported to metrics
-- Export a computed AQI score? Requires converting the raw particle values to the AQI value.
-
