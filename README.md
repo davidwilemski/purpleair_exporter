@@ -6,7 +6,7 @@ Exports data from https://purpleair.com into a Prometheus-compatible format
 
 As of now, there is a single configuration option and it is required to be set:
 
-The `PURPLEAIR_SENSOR_IDS` environment variable controls what sensor to request data from. This is intended to support a comma-separated list of sensor IDs but as of v0.1 only supports a single sensor ID.
+The `PURPLEAIR_SENSOR_IDS` environment variable controls what sensor to request data from. This is intended to support a comma-separated or pipe-separate list of sensor IDs. For example, `PURPLEAIR_SENSOR_IDS="123|456"`, `PURPLEAIR_SENSOR_IDS="123,456"`, and `PURPLEAIR_SENSOR_IDS=123` all work.
 
 ## Running
 
@@ -16,7 +16,6 @@ There is a Docker container published to `dtw0/purpleair-exporter` built using t
 
 ## TODO
 
-- Support multiple sensors in `PURPLEAIR_SENSOR_IDS`
 - Make ip/port binding configurable (hardcoded to 0.0.0.0:3000 for now)
 - Use logging crate instead of `println!` macro
 - Export further data from sensors: we have other data available in the `SensorInfo` struct but it is not currently exported to metrics

@@ -124,11 +124,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 async fn scrape_purple_air(sensor_ids: &str) -> Result<(), Box<dyn std::error::Error>> {
-    // TODO split sensor_ids on comma and run this routine once per ID
-    // For now, this only supports a single sensor ID
     let purple_air_resp: serde_json::Value = reqwest::get(format!(
         "https://www.purpleair.com/json?show={}",
-        sensor_ids
+        sensor_ids.replace(',', "|")
     ))
     .await?
     .json()
