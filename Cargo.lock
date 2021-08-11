@@ -662,7 +662,7 @@ checksum = "020f86b07722c5c4291f7c723eac4676b3892d47d9a7708dc2779696407f039b"
 
 [[package]]
 name = "purpleair_exporter"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "axum",
  "env_logger",

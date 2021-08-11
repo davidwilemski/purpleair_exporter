@@ -1,6 +1,6 @@
 [package]
 name = "purpleair_exporter"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["David Wilemski <david@wilemski.org>"]
 repository = "https://github.com/davidwilemski/purpleair_exporter"
 license = "MIT"

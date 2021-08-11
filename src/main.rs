@@ -37,6 +37,12 @@ lazy_static! {
         &["id", "sensor_label"]
     )
     .unwrap();
+    static ref PM2_5_AQI: IntGaugeVec = register_int_gauge_vec!(
+        "purpleair_pm2_5_aqi_estimate",
+        "Estimated instantaneous PM2.5 AQI value based on interpretation of AQI ranges given by the EPA",
+        &["id", "sensor_label"]
+    )
+    .unwrap();
     static ref PARTICULATE_MASS: GaugeVec = register_gauge_vec!(
         "purpleair_",
         "Sensor reported raw value particulate mass in ug/m3",
@@ -161,6 +167,9 @@ async fn scrape_purple_air(sensor_ids: &str) -> Result<(), Box<dyn std::error::E
                     PM2_5_VALUE
                         .with_label_values(common_labels)
                         .set(sensor_info.pm_2_5_value.parse::<f64>()?);
+                    PM2_5_AQI
+                        .with_label_values(common_labels)
+                        .set(pm2_5_aqi_estimate(sensor_info.pm_2_5_value.parse::<f64>()?) as i64);
 
                     if let Some(temp_f) = sensor_info.temp_f {
                         TEMP.with_label_values(common_labels)
@@ -210,4 +219,85 @@ where
 {
     error!("{:?}", err);
     StatusCode::INTERNAL_SERVER_ERROR
+}
+
+fn pm2_5_aqi_estimate(pm_2_5_value: f64) -> i32 {
+    // From: https://aqs.epa.gov/aqsweb/documents/codetables/aqi_breakpoints.html as of August 09,
+    // 2021
+    let breakpoints = [12f64, 35.4, 55.5, 150.5, 250.5, 350.5, 500.5, 99999.9];
+    // Simple linear interpolation within AQI ranges
+    // ((high aqi - low aqi) / (high concentration - low concentration)) * concentration value
+    match pm_2_5_value {
+        v if v <= breakpoints[0] => (((50f64 - 0f64) / (breakpoints[0] - 0f64)) * v).round() as i32,
+        v if v <= breakpoints[1] => ((((100f64 - 51f64) / (breakpoints[1] - breakpoints[0]))
+            * (v - breakpoints[0]))
+            + 51f64)
+            .round() as i32,
+        v if v < breakpoints[2] => {
+            ((((150f64 - 101f64) / (breakpoints[2] - breakpoints[1])) * (v - breakpoints[1])) + 101f64)
+                .round() as i32
+        }
+        v if v < breakpoints[3] => {
+            ((((200f64 - 151f64) / (breakpoints[3] - breakpoints[2])) * (v - breakpoints[2])) + 151f64)
+                .round() as i32
+        }
+        v if v < breakpoints[4] => {
+            ((((300f64 - 201f64) / (breakpoints[4] - breakpoints[3])) * (v - breakpoints[3])) + 201f64)
+                .round() as i32
+        }
+        v if v < breakpoints[5] => {
+            ((((400f64 - 301f64) / (breakpoints[5] - breakpoints[4])) * (v - breakpoints[4])) + 301f64)
+                .round() as i32
+        }
+        v if v < breakpoints[6] => {
+            ((((500f64 - 401f64) / (breakpoints[6] - breakpoints[5])) * (v - breakpoints[5])) + 401f64)
+                .round() as i32
+        }
+        v if v < breakpoints[7] => {
+            warn!("value {} exceeds concentration limit", v);
+            ((((999f64 - 501f64) / (breakpoints[7] - breakpoints[6])) * (v - breakpoints[6])) + 501f64)
+                .round() as i32
+        }
+        v => {
+            warn!("value {} exceeds concentration limit", v);
+            501
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_pm_2_5_aqi_estimate() {
+        assert_eq!(pm2_5_aqi_estimate(9.5f64), 40);
+        assert_eq!(pm2_5_aqi_estimate(11f64), 46);
+        assert_eq!(pm2_5_aqi_estimate(12f64), 50);
+        assert_eq!(pm2_5_aqi_estimate(12.1f64), 51);
+        assert_eq!(pm2_5_aqi_estimate(15f64), 57);
+        assert_eq!(pm2_5_aqi_estimate(30f64), 89);
+        assert_eq!(pm2_5_aqi_estimate(35.4f64), 100);
+        assert_eq!(pm2_5_aqi_estimate(35.5f64), 101);
+        assert_eq!(pm2_5_aqi_estimate(50f64), 137);
+        assert_eq!(pm2_5_aqi_estimate(55.4f64), 150);
+        assert_eq!(pm2_5_aqi_estimate(55.5f64), 151);
+        assert_eq!(pm2_5_aqi_estimate(100f64), 174);
+        assert_eq!(pm2_5_aqi_estimate(150.4f64), 200);
+        assert_eq!(pm2_5_aqi_estimate(150.5f64), 201);
+        assert_eq!(pm2_5_aqi_estimate(175f64), 225);
+        assert_eq!(pm2_5_aqi_estimate(200f64), 250);
+        assert_eq!(pm2_5_aqi_estimate(201f64), 251);
+        assert_eq!(pm2_5_aqi_estimate(250f64), 300);
+        assert_eq!(pm2_5_aqi_estimate(251f64), 301);
+        assert_eq!(pm2_5_aqi_estimate(300f64), 350);
+        assert_eq!(pm2_5_aqi_estimate(350f64), 400);
+        assert_eq!(pm2_5_aqi_estimate(351f64), 401);
+        assert_eq!(pm2_5_aqi_estimate(400f64), 434);
+        assert_eq!(pm2_5_aqi_estimate(500f64), 500);
+        // These are above the scale
+        assert_eq!(pm2_5_aqi_estimate(501f64), 501);
+        assert_eq!(pm2_5_aqi_estimate(550f64), 501);
+        assert_eq!(pm2_5_aqi_estimate(900f64), 503);
+    }
 }
