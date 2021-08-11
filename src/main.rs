@@ -8,6 +8,7 @@ use std::net::SocketAddr;
 
 use axum::prelude::*;
 use http::status::StatusCode;
+use log::{debug, error, info, warn};
 use prometheus::{Encoder, GaugeVec, IntGaugeVec, TextEncoder};
 use serde::{self, Deserialize};
 
@@ -114,6 +115,8 @@ impl SensorInfo {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    env_logger::init();
+
     let app = route("/metrics", get(metrics));
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
@@ -131,7 +134,7 @@ async fn scrape_purple_air(sensor_ids: &str) -> Result<(), Box<dyn std::error::E
     .await?
     .json()
     .await?;
-    println!("resp = {:?}", purple_air_resp);
+    debug!("resp = {:?}", purple_air_resp);
 
     match purple_air_resp.get("results") {
         Some(results) => {
@@ -176,14 +179,17 @@ async fn scrape_purple_air(sensor_ids: &str) -> Result<(), Box<dyn std::error::E
                 }
             }
         }
-        None => println!("results array not found!"),
+        None => warn!("results array not found!"),
     };
     Ok(())
 }
 
 async fn metrics() -> Result<String, StatusCode> {
+    info!("Handling metrics call");
     let sensor_ids = env::var("PURPLEAIR_SENSOR_IDS").map_err(log_error)?;
-    scrape_purple_air(&sensor_ids).await.map_err(log_box_error)?;
+    scrape_purple_air(&sensor_ids)
+        .await
+        .map_err(log_box_error)?;
     let encoder = TextEncoder::new();
     let mut buffer = vec![];
     encoder
@@ -194,7 +200,7 @@ async fn metrics() -> Result<String, StatusCode> {
 }
 
 fn log_box_error(err: Box<dyn std::error::Error>) -> StatusCode {
-    println!("error = {:?}", err);
+    error!("{:?}", err);
     StatusCode::INTERNAL_SERVER_ERROR
 }
 
@@ -202,6 +208,6 @@ fn log_error<E>(err: E) -> StatusCode
 where
     E: std::error::Error,
 {
-    println!("error = {:?}", err);
+    error!("{:?}", err);
     StatusCode::INTERNAL_SERVER_ERROR
 }
